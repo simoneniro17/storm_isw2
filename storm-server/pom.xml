@@ -139,6 +139,17 @@
             <artifactId>junit-jupiter-params</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -170,10 +181,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <reuseForks>false</reuseForks>
+               <configuration>
+                    <reuseForks>true</reuseForks>
                     <forkCount>1</forkCount>
-                    <argLine>${storm-server.test.introspection.argLine} -Xmx3g -XX:+HeapDumpOnOutOfMemoryError</argLine>
+                    <!-- <argLine>${storm-server.test.introspection.argLine} -Xmx3g -XX:+HeapDumpOnOutOfMemoryError</argLine> -->
                 </configuration>
             </plugin>
             <plugin>
@@ -191,11 +202,6 @@
                 <configuration>
                     <reportsDirectory>${project.build.directory}/test-reports</reportsDirectory>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-checkstyle-plugin</artifactId>
-                <!--Note - the version would be inherited-->
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -227,4 +233,173 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- ISW2 - Jacoco profile -->
+        <profile>
+            <id>jacoco</id>
+            <build>
+                <plugins>
+                    <!-- Execute tests -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <argLine>@{argLine}</argLine>
+                        </configuration>
+                    </plugin>
+                    <!-- Produce Jacoco report -->
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.7</version>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco.exec</dataFile>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <!-- attached to Maven test phase -->
+                            <execution>
+                                <id>report</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- ISW2 - PIT profile -->
+        <profile>
+            <id>pitest</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-maven</artifactId>
+                        <version>1.16.1</version>
+                        <executions>
+                            <execution>
+                                <id>run-pitest</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>mutationCoverage</goal>
+                                </goals>
+                                <configuration>
+                                    <targetClasses>
+                                        <param>org.apache.storm.my.Calculator</param>
+                                    </targetClasses>
+                                    <targetTests>
+                                        <param>org.apache.storm.my.CalculatorTest</param>
+                                    </targetTests>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- ISW2 - Ba-dua profile -->
+        <profile>
+            <id>badua</id>
+            <dependencies>
+                <dependency>
+                    <groupId>br.usp.each.saeg</groupId>
+                    <artifactId>ba-dua-cli</artifactId>
+                    <version>0.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>br.usp.each.saeg</groupId>
+                    <artifactId>ba-dua-agent-rt</artifactId>
+                    <version>0.8.0</version>
+                </dependency>
+            </dependencies>
+
+            <build>
+                <plugins>
+                    <!-- Copy agent from dependency -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>2.8</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>br.usp.each.saeg</groupId>
+                                            <artifactId>ba-dua-agent-rt</artifactId>
+                                            <classifier>all</classifier>
+                                            <version>0.8.0</version>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- Execute tests -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <version>3.0.0-M5</version>
+                        <configuration>
+                            <argLine>
+                                -javaagent:ba-dua/dependency/ba-dua-agent-rt-0.8.0-all.jar
+                                -Doutput.file=target/coverage.ser
+                            </argLine>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>1.6.0</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <phase>test</phase>
+                                <configuration>
+                                    <mainClass>br.usp.each.saeg.badua.cli.Report</mainClass>
+                                    <arguments>
+                                        <argument>-input</argument>
+                                        <argument>${project.build.directory}/coverage.ser</argument>
+                                        <argument>-classes</argument>
+                                        <argument>target/classes/org/apache/storm/my</argument>
+                                        <argument>-show-classes</argument>
+                                        <argument>-show-methods</argument>
+                                        <argument>-xml</argument>
+                                        <argument>${project.build.directory}/badua.xml</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <!-- Prettify Badua report -->
+                            <execution>
+                                <id>Prettify Badua Report</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${basedir}/ba-dua/prettify.sh</executable>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
